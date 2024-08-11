@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Screen Drawing</title>
+    <style>
+        body {
+            background-color: #e8f4f8;
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            flex-direction: column;
+        }
+        #canvasContainer {
+            position: relative;
+            width: 240px;
+            height: 240px;
+            border-radius: 50%;
+            overflow: hidden;
+            border: 1px solid #000;
+            background-color: rgb(0, 0, 0);
+        }
+        #drawingCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            margin-top: 20px;
+        }
+        .color-picker-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-left: 10px;
+        }
+        .color-picker {
+            margin-bottom: 5px;
+            padding: 10px;
+            border: 1px solid #000;
+            border-radius: 5px;
+        }
+        .color-display {
+            width: 50px;
+            height: 25px;
+            border: 1px solid #000;
+            border-radius: 5px;
+        }
+        .controls button {
+            margin-left: 10px;
+            padding: 10px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="canvasContainer">
+        <canvas id="drawingCanvas" width="240" height="240"></canvas>
+    </div>
+
+    <div class="controls">
+        <div class="color-picker-container">
+            <label for="colorPicker">Draw Color:</label>
+            <input type="color" id="colorPicker" class="color-picker" value="#ffffff">
+            <div id="colorDisplay" class="color-display"></div>
+        </div>
+        <div class="color-picker-container">
+            <label for="bgColorPicker">Background Color:</label>
+            <input type="color" id="bgColorPicker" class="color-picker" value="#ffffff">
+            <div id="bgColorDisplay" class="color-display"></div>
+        </div>
+        <button id="clearButton">Clear</button>
+        <button id="saveButton">Save Drawing</button>
+        <button id="saveSingleLineButton">Save Single-Line JSON</button>
+        <button id="copySingleLineButton">Copy Single-Line JSON</button>
+        <button id="copyMultiLineButton">Copy Multi-Line JSON</button>
+        <button id="copyMultiLineNoInterpolationButton">Copy Multi-Line JSON (No Interpolation)</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('drawingCanvas');
+        const ctx = canvas.getContext('2d');
+        const colorPicker = document.getElementById('colorPicker');
+        const bgColorPicker = document.getElementById('bgColorPicker');
+        const colorDisplay = document.getElementById('colorDisplay');
+        const bgColorDisplay = document.getElementById('bgColorDisplay');
+        const clearButton = document.getElementById('clearButton');
+        const saveButton = document.getElementById('saveButton');
+        const saveSingleLineButton = document.getElementById('saveSingleLineButton');
+        const copySingleLineButton = document.getElementById('copySingleLineButton');
+        const copyMultiLineButton = document.getElementById('copyMultiLineButton');
+        const copyMultiLineNoInterpolationButton = document.getElementById('copyMultiLineNoInterpolationButton');
+        let drawing = false;
+        let drawData = [];
+        let strokeId = 0;
+
+        function updateColorDisplays() {
+            colorDisplay.style.backgroundColor = colorPicker.value;
+            bgColorDisplay.style.backgroundColor = bgColorPicker.value;
+        }
+
+        canvas.addEventListener('mousedown', () => {
+            drawing = true;
+            strokeId++;
+        });
+
+        document.addEventListener('mouseup', () => {
+            drawing = false;
+            ctx.beginPath();
+        });
+
+        canvas.addEventListener('mousemove', draw);
+
+        clearButton.addEventListener('click', clearCanvas);
+
+        saveButton.addEventListener('click', saveDrawing);
+
+        saveSingleLineButton.addEventListener('click', saveSingleLineDrawing);
+
+        copySingleLineButton.addEventListener('click', copySingleLineDrawing);
+
+        copyMultiLineButton.addEventListener('click', copyMultiLineDrawing);
+
+        copyMultiLineNoInterpolationButton.addEventListener('click', copyMultiLineDrawingNoInterpolation);
+
+        colorPicker.addEventListener('change', updateColorDisplays);
+        bgColorPicker.addEventListener('change', updateColorDisplays);
+
+        function draw(event) {
+            if (!drawing) return;
+
+            const rect = canvas.getBoundingClientRect();
+            let x = event.clientX - rect.left;
+            let y = event.clientY - rect.top;
+
+            x = Math.round(x);
+            y = Math.round(y);
+
+            if (isWithinCircle(x, y)) {
+                ctx.lineWidth = 1;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = colorPicker.value;
+
+                ctx.lineTo(x, y);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+
+                drawData.push({ x, y, color: colorPicker.value, strokeId: strokeId });
+            }
+        }
+
+        function isWithinCircle(x, y) {
+            const radius = 120; // Half the width or height of the canvas
+            const centerX = 120; // Center x coordinate
+            const centerY = 120; // Center y coordinate
+            return Math.pow(x - centerX, 2) + Math.pow(y - centerY, 2) <= Math.pow(radius, 2);
+        }
+
+        function clearCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawData = [];
+            strokeId = 0;
+        }
+
+        function saveDrawing() {
+            const json = JSON.stringify(drawData, null, 2);
+            const blob = new Blob([json], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawing.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function saveSingleLineDrawing() {
+            const json = JSON.stringify(drawData);
+            const escapedJson = json.replace(/\"/g, '\\"');
+            const blob = new Blob([escapedJson], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'drawing_single_line.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function copySingleLineDrawing() {
+            const json = JSON.stringify(drawData);
+            const escapedJson = json.replace(/\"/g, '\\"');
+            const tempInput = document.createElement('textarea');
+            tempInput.value = `const char* jsonData = "${escapedJson}";`;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+        }
+
+        function copyMultiLineDrawing() {
+            const json = JSON.stringify(drawData, null, 2); // Format the JSON with indentation
+            const formattedJson = `const char* jsonData = R"(${json})";`; // Directly use the JSON inside the raw string literal
+            const tempInput = document.createElement('textarea');
+            tempInput.value = formattedJson;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+        }
+
+        function copyMultiLineDrawingNoInterpolation() {
+            // Filter out interpolated points and 0-index the strokeIds
+            const filteredData = drawData.filter((_, index) => index % 2 === 0);
+            const strokeIdMapping = {};
+            let newStrokeId = 0;
+
+            filteredData.forEach(point => {
+                if (!(point.strokeId in strokeIdMapping)) {
+                    strokeIdMapping[point.strokeId] = newStrokeId++;
+                }
+                point.strokeId = strokeIdMapping[point.strokeId];
+            });
+
+            const json = JSON.stringify(filteredData, null, 2); // Format the JSON with indentation
+            const formattedJson = `const char* jsonData = R"(${json})";`; // Directly use the JSON inside the raw string literal
+            const tempInput = document.createElement('textarea');
+            tempInput.value = formattedJson;
+            document.body.appendChild(tempInput);
+            tempInput.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempInput);
+        }
+
+        updateColorDisplays();
+    </script>
+</body>
+</html>

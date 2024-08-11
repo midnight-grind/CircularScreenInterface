@@ -52,12 +52,15 @@
             border: 1px solid #000;
             border-radius: 5px;
         }
-        .controls button {
+        .controls button, #fileInput {
             margin-left: 10px;
             padding: 10px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
+        }
+        #fileInput {
+            padding: 0;
         }
     </style>
 </head>
@@ -79,11 +82,12 @@
             <div id="bgColorDisplay" class="color-display"></div>
         </div>
         <button id="clearButton">Clear</button>
-        <button id="saveButton">Save Drawing</button>
-        <button id="saveSingleLineButton">Save Single-Line JSON</button>
-        <button id="copySingleLineButton">Copy Single-Line JSON</button>
-        <button id="copyMultiLineButton">Copy Multi-Line JSON</button>
-        <button id="copyMultiLineNoInterpolationButton">Copy Multi-Line JSON (No Interpolation)</button>
+        <button id="saveWithInterpolationButton">Save with Interpolation</button>
+        <button id="saveWithoutInterpolationButton">Save without Interpolation</button>
+        <button id="copyWithInterpolationButton">Copy with Interpolation</button>
+        <button id="copyWithoutInterpolationButton">Copy without Interpolation</button>
+        <input type="file" id="fileInput" accept="image/png">
+        <button id="importImageButton">Import PNG</button>
     </div>
 
     <script>
@@ -94,11 +98,12 @@
         const colorDisplay = document.getElementById('colorDisplay');
         const bgColorDisplay = document.getElementById('bgColorDisplay');
         const clearButton = document.getElementById('clearButton');
-        const saveButton = document.getElementById('saveButton');
-        const saveSingleLineButton = document.getElementById('saveSingleLineButton');
-        const copySingleLineButton = document.getElementById('copySingleLineButton');
-        const copyMultiLineButton = document.getElementById('copyMultiLineButton');
-        const copyMultiLineNoInterpolationButton = document.getElementById('copyMultiLineNoInterpolationButton');
+        const saveWithInterpolationButton = document.getElementById('saveWithInterpolationButton');
+        const saveWithoutInterpolationButton = document.getElementById('saveWithoutInterpolationButton');
+        const copyWithInterpolationButton = document.getElementById('copyWithInterpolationButton');
+        const copyWithoutInterpolationButton = document.getElementById('copyWithoutInterpolationButton');
+        const fileInput = document.getElementById('fileInput');
+        const importImageButton = document.getElementById('importImageButton');
         let drawing = false;
         let drawData = [];
         let strokeId = 0;
@@ -122,15 +127,13 @@
 
         clearButton.addEventListener('click', clearCanvas);
 
-        saveButton.addEventListener('click', saveDrawing);
+        saveWithInterpolationButton.addEventListener('click', () => saveDrawing(true));
+        saveWithoutInterpolationButton.addEventListener('click', () => saveDrawing(false));
 
-        saveSingleLineButton.addEventListener('click', saveSingleLineDrawing);
+        copyWithInterpolationButton.addEventListener('click', () => copyJsonToClipboard(true));
+        copyWithoutInterpolationButton.addEventListener('click', () => copyJsonToClipboard(false));
 
-        copySingleLineButton.addEventListener('click', copySingleLineDrawing);
-
-        copyMultiLineButton.addEventListener('click', copyMultiLineDrawing);
-
-        copyMultiLineNoInterpolationButton.addEventListener('click', copyMultiLineDrawingNoInterpolation);
+        importImageButton.addEventListener('click', importImage);
 
         colorPicker.addEventListener('change', updateColorDisplays);
         bgColorPicker.addEventListener('change', updateColorDisplays);
@@ -172,74 +175,106 @@
             strokeId = 0;
         }
 
-        function saveDrawing() {
-            const json = JSON.stringify(drawData, null, 2);
+        function saveDrawing(withInterpolation) {
+            const json = JSON.stringify({
+                interpolate: withInterpolation,
+                points: drawData
+            }, null, 2);
+
             const blob = new Blob([json], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
-            a.download = 'drawing.json';
+            a.download = `drawing_${withInterpolation ? "with" : "without"}_interpolation.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
         }
 
-        function saveSingleLineDrawing() {
-            const json = JSON.stringify(drawData);
-            const escapedJson = json.replace(/\"/g, '\\"');
-            const blob = new Blob([escapedJson], { type: 'application/json' });
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = 'drawing_single_line.json';
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-        }
-
-        function copySingleLineDrawing() {
-            const json = JSON.stringify(drawData);
-            const escapedJson = json.replace(/\"/g, '\\"');
-            const tempInput = document.createElement('textarea');
-            tempInput.value = `const char* jsonData = "${escapedJson}";`;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-        }
-
-        function copyMultiLineDrawing() {
-            const json = JSON.stringify(drawData, null, 2); // Format the JSON with indentation
-            const formattedJson = `const char* jsonData = R"(${json})";`; // Directly use the JSON inside the raw string literal
-            const tempInput = document.createElement('textarea');
-            tempInput.value = formattedJson;
-            document.body.appendChild(tempInput);
-            tempInput.select();
-            document.execCommand('copy');
-            document.body.removeChild(tempInput);
-        }
-
-        function copyMultiLineDrawingNoInterpolation() {
-            // Filter out interpolated points and 0-index the strokeIds
-            const filteredData = drawData.filter((_, index) => index % 2 === 0);
-            const strokeIdMapping = {};
-            let newStrokeId = 0;
-
-            filteredData.forEach(point => {
-                if (!(point.strokeId in strokeIdMapping)) {
-                    strokeIdMapping[point.strokeId] = newStrokeId++;
-                }
-                point.strokeId = strokeIdMapping[point.strokeId];
+        function copyJsonToClipboard(withInterpolation) {
+            const json = JSON.stringify({
+                interpolate: withInterpolation,
+                points: drawData
             });
 
-            const json = JSON.stringify(filteredData, null, 2); // Format the JSON with indentation
-            const formattedJson = `const char* jsonData = R"(${json})";`; // Directly use the JSON inside the raw string literal
+            const escapedJson = json.replace(/\"/g, '\\"');
+            const jsonDataString = `const char* jsonData = "${escapedJson}";`;
+
             const tempInput = document.createElement('textarea');
-            tempInput.value = formattedJson;
+            tempInput.value = jsonDataString;
             document.body.appendChild(tempInput);
             tempInput.select();
             document.execCommand('copy');
             document.body.removeChild(tempInput);
+            // alert(`Copied JSON with ${withInterpolation ? 'interpolation' : 'no interpolation'} to clipboard.`);
+        }
+
+        function importImage() {
+            const file = fileInput.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear the canvas
+                    const centerX = canvas.width / 2;
+                    const centerY = canvas.height / 2;
+                    const radius = 120; // Radius of the circle
+
+                    // Calculate the size and position to fit the image within the circle
+                    const imgRatio = img.width / img.height;
+                    const canvasRatio = canvas.width / canvas.height;
+                    let width, height;
+
+                    if (imgRatio > canvasRatio) {
+                        width = canvas.width;
+                        height = width / imgRatio;
+                    } else {
+                        height = canvas.height;
+                        width = height * imgRatio;
+                    }
+
+                    // Draw the image centered in the canvas
+                    ctx.drawImage(img, centerX - width / 2, centerY - height / 2, width, height);
+
+                    // Get image data from the canvas
+                    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                    const data = imageData.data;
+                    drawData = []; // Clear previous drawData
+
+                    for (let y = 0; y < canvas.height; y++) {
+                        for (let x = 0; x < canvas.width; x++) {
+                            const index = (y * canvas.width + x) * 4;
+                            const r = data[index];
+                            const g = data[index + 1];
+                            const b = data[index + 2];
+                            const a = data[index + 3];
+
+                            if (a > 0 && isWithinCircle(x, y)) { // Only add pixels within the circle
+                                const hexColor = rgbToHex(r, g, b);
+                                drawData.push({ x, y, color: hexColor, strokeId: strokeId });
+                            }
+                        }
+                    }
+
+                    // Apply a circular mask to display the image in the circle
+                    ctx.globalCompositeOperation = 'destination-in';
+                    ctx.beginPath();
+                    ctx.arc(centerX, centerY, radius, 0, Math.PI * 2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.globalCompositeOperation = 'source-over'; // Reset to default
+
+                    strokeId++; // Increment strokeId for the next drawing
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function rgbToHex(r, g, b) {
+            return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toUpperCase();
         }
 
         updateColorDisplays();

@@ -106,6 +106,8 @@
         const importImageButton = document.getElementById('importImageButton');
         let drawing = false;
         let drawData = [];
+        let strokes = [];
+        let currentStroke = [];
         let strokeId = 0;
 
         function updateColorDisplays() {
@@ -116,10 +118,14 @@
         canvas.addEventListener('mousedown', () => {
             drawing = true;
             strokeId++;
+            currentStroke = [];
         });
 
         document.addEventListener('mouseup', () => {
             drawing = false;
+            if (currentStroke.length > 0) {
+                strokes.push({ points: currentStroke });
+            }
             ctx.beginPath();
         });
 
@@ -158,7 +164,7 @@
                 ctx.beginPath();
                 ctx.moveTo(x, y);
 
-                drawData.push({ x, y, color: colorPicker.value, strokeId: strokeId });
+                currentStroke.push({ x, y, color: colorPicker.value });
             }
         }
 
@@ -172,13 +178,14 @@
         function clearCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             drawData = [];
+            strokes = [];
             strokeId = 0;
         }
 
         function saveDrawing(withInterpolation) {
             const json = JSON.stringify({
                 interpolate: withInterpolation,
-                points: drawData
+                strokes: strokes
             }, null, 2);
 
             const blob = new Blob([json], { type: 'application/json' });
@@ -194,7 +201,7 @@
         function copyJsonToClipboard(withInterpolation) {
             const json = JSON.stringify({
                 interpolate: withInterpolation,
-                points: drawData
+                strokes: strokes
             });
 
             const escapedJson = json.replace(/\"/g, '\\"');
@@ -253,7 +260,7 @@
 
                             if (a > 0 && isWithinCircle(x, y)) { // Only add pixels within the circle
                                 const hexColor = rgbToHex(r, g, b);
-                                drawData.push({ x, y, color: hexColor, strokeId: strokeId });
+                                drawData.push({ x, y, color: hexColor });
                             }
                         }
                     }
